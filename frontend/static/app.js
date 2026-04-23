@@ -40,11 +40,28 @@
  * - 응답 코드가 실패면 즉시 예외로 올려 상위 try/catch에서 일관 처리한다.
  */
 async function apiFetch(url, options = {}) {
+  const {
+    timeoutMs = 90_000,
+    ...restOptions
+  } = options;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   const finalOptions = {
     cache: 'no-store',
-    ...options,
+    ...restOptions,
+    signal: restOptions.signal || controller.signal,
   };
-  const res = await fetch(url, finalOptions);
+  let res;
+  try {
+    res = await fetch(url, finalOptions);
+  } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error('요청 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
   if (!res.ok) {
     let detail = '';
     try {
@@ -699,13 +716,14 @@ async function handleP2FileSelect(inputEl) {
     for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
     const contentB64 = btoa(binary);
 
-    const res = await fetch('/api/p2/upload', {
+    const res = await apiFetch('/api/p2/upload', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      timeoutMs: 90_000,
       body: JSON.stringify({ filename: file.name, content_b64: contentB64 }),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.filename) throw new Error(data.detail || `HTTP ${res.status}`);
+    if (!data.filename) throw new Error(data.detail || '업로드 응답이 올바르지 않습니다.');
 
     _p2UploadedReportFilename = data.filename;
     _p2AiSelectedReportId = '';
@@ -842,27 +860,38 @@ async function runP2AiPipeline() {
 }
 
 async function _runP2MarketPipeline(reportFilename, market, targetCountry) {
-  const res = await fetch('/api/p2/pipeline', {
+  const res = await apiFetch('/api/p2/pipeline', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    timeoutMs: 90_000,
     body: JSON.stringify({
       report_filename: reportFilename,
       market,
       target_country: targetCountry != null && targetCountry !== '' ? targetCountry : 'HU',
     }),
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+  await res.json().catch(() => ({}));
 
   return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
     const timer = setInterval(async () => {
       try {
-        const sr = await fetch('/api/p2/pipeline/status');
+        if (Date.now() - startedAt > 90_000) {
+          clearInterval(timer);
+          reject(new Error('가격 전략 분석 시간이 초과되었습니다. 다시 시도해 주세요.'));
+          return;
+        }
+        const sr = await apiFetch('/api/p2/pipeline/status', { timeoutMs: 15_000 });
         const sd = await sr.json();
         if (sd.status === 'idle') return;
+        const loadingLabel = document.getElementById('p2-loading-label');
+        if (loadingLabel) {
+          loadingLabel.textContent = sd.step === 'report' ? 'PDF 생성 중...' : '가격 전략 분석 중...';
+        }
         if (sd.status === 'done') {
           clearInterval(timer);
-          const rr = await fetch('/api/p2/pipeline/result');
+          const rr = await apiFetch('/api/p2/pipeline/result', { timeoutMs: 30_000 });
+          if (loadingLabel) loadingLabel.textContent = '완료';
           resolve(await rr.json());
         } else if (sd.status === 'error') {
           clearInterval(timer);
@@ -1568,13 +1597,14 @@ async function _generateP2Pdf() {
       ],
       ai_rationale: [],
     };
-    const res = await fetch('/api/p2/report', {
+    const res = await apiFetch('/api/p2/report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      timeoutMs: 90_000,
       body: JSON.stringify(body),
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.pdf) throw new Error(data.detail || `HTTP ${res.status}`);
+    if (!data.pdf) throw new Error(data.detail || 'PDF 생성 응답이 올바르지 않습니다.');
     if (stateEl) {
       stateEl.innerHTML = `<a class="btn-download" href="/api/report/download?name=${encodeURIComponent(data.pdf)}" target="_blank" style="font-size:12px;padding:6px 14px;">다운로드</a>`;
     }
@@ -1684,10 +1714,18 @@ async function runPipeline() {
   setProgress('db_load', 'running');
 
   try {
-    const res = await fetch(`/api/pipeline/${encodeURIComponent(productKey)}`, {
-      method: 'POST',
-      cache: 'no-store',
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90_000);
+    let res;
+    try {
+      res = await fetch(`/api/pipeline/${encodeURIComponent(productKey)}`, {
+        method: 'POST',
+        cache: 'no-store',
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));
       // 이미 실행 중이면 기존 작업 폴링을 이어간다.
@@ -1840,19 +1878,14 @@ async function runCustomPipeline() {
   _setCustomProgress('analyze', 'running');
 
   try {
-    const res = await fetch('/api/pipeline/custom', {
+    const res = await apiFetch('/api/pipeline/custom', {
       method:  'POST',
       cache: 'no-store',
+      timeoutMs: 90_000,
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ trade_name: tradeName, inn, dosage_form: dosage }),
     });
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      console.error('신약 분석 오류:', d.detail || res.status);
-      _setCustomProgress('analyze', 'error');
-      _resetCustomBtn();
-      return;
-    }
+    await res.json().catch(() => ({}));
     _customPollStartedAt = Date.now();
     _customPollIdleCount = 0;
     _customPollTimer = setInterval(_pollCustomPipeline, 2500);
@@ -2431,9 +2464,10 @@ async function runP3Pipeline() {
   if (_p3LoadEl) _p3LoadEl.style.display = '';
 
   try {
-    const res = await fetch('/api/buyers/run', {
+    const res = await apiFetch('/api/buyers/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      timeoutMs: 90_000,
       body: JSON.stringify({
         product_key:    product,
         active_criteria: activeCriteria,
@@ -2443,8 +2477,7 @@ async function runP3Pipeline() {
       }),
     });
     const data = await res.json();
-    // 409 = 이미 실행 중 → 폴링만 시작
-    if (res.status !== 409 && !res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+    if (!data.ok && !data.task_id) throw new Error(data.detail || '바이어 파이프라인 실행에 실패했습니다.');
     if (data.task_id) sessionStorage.setItem('p3_task_id', data.task_id);
     if (_p3PollTimer) clearInterval(_p3PollTimer);
     _p3PollTimer = setInterval(_pollP3, 2500);
@@ -2515,7 +2548,7 @@ function _buildBuyerAnalysisContext(productKey) {
       if (_p3PollTimer) clearInterval(_p3PollTimer);
       _p3PollTimer = setInterval(_pollP3, 2500);
     } else if (data.status === 'done' && isMyTask) {
-      const rr     = await fetch('/api/buyers/result');
+      const rr     = await apiFetch('/api/buyers/result', { timeoutMs: 30_000 });
       const result = await rr.json();
       _p3Buyers  = [];                    // 재방문 시 카드 초기화
       _p3PdfName = result.pdf || null;
@@ -2538,7 +2571,7 @@ async function _pollP3() {
       if (_p3LoadDone) _p3LoadDone.style.display = 'none';
       _p3Log('파이프라인 완료 — 결과 불러오는 중…', 'success');
 
-      const rr     = await fetch('/api/buyers/result');
+      const rr     = await apiFetch('/api/buyers/result', { timeoutMs: 30_000 });
       const result = await rr.json();
       _p3Buyers  = result.buyers || [];
       _p3PdfName = result.pdf   || null;

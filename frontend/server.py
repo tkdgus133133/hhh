@@ -780,18 +780,23 @@ async def _run_custom_pipeline(trade_name: str, inn: str, dosage_form: str) -> N
 @app.post("/api/pipeline/custom")
 async def trigger_custom_pipeline(body: CustomDrugBody) -> JSONResponse:
     global _custom_task
-    if _custom_task.get("status") == "running":
-        raise HTTPException(status_code=409, detail="??? ?????? ?? ?? ????.")
-    _custom_task = {
-        "status": "running", "step": "analyze", "step_label": "?? ?...",
-        "result": None, "refs": [], "pdf": None,
-    }
-    if _IS_VERCEL:
-        # Vercel 서버리스에서는 백그라운드 task 메모리가 보장되지 않아 인라인 실행한다.
-        await _run_custom_pipeline(body.trade_name, body.inn, body.dosage_form)
-    else:
-        asyncio.create_task(_run_custom_pipeline(body.trade_name, body.inn, body.dosage_form))
-    return JSONResponse({"ok": True})
+    try:
+        if _custom_task.get("status") == "running":
+            raise HTTPException(status_code=409, detail="??? ?????? ?? ?? ????.")
+        _custom_task = {
+            "status": "running", "step": "analyze", "step_label": "?? ?...",
+            "result": None, "refs": [], "pdf": None,
+        }
+        if _IS_VERCEL:
+            # Vercel 서버리스에서는 백그라운드 task 메모리가 보장되지 않아 인라인 실행한다.
+            await _run_custom_pipeline(body.trade_name, body.inn, body.dosage_form)
+        else:
+            asyncio.create_task(_run_custom_pipeline(body.trade_name, body.inn, body.dosage_form))
+        return JSONResponse({"ok": True})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return JSONResponse({"ok": False, "detail": str(exc)[:200]}, status_code=500)
 
 
 @app.get("/api/pipeline/custom/status")
@@ -823,18 +828,23 @@ async def custom_pipeline_result() -> JSONResponse:
 
 @app.post("/api/pipeline/{product_key}")
 async def trigger_pipeline(product_key: str) -> JSONResponse:
-    if _pipeline_tasks.get(product_key, {}).get("status") == "running":
-        raise HTTPException(status_code=409, detail="?????? ?? ?? ????.")
-    _pipeline_tasks[product_key] = {
-        "status": "running", "step": "init", "step_label": "?? ?...",
-        "result": None, "refs": [], "pdf": None,
-    }
-    if _IS_VERCEL:
-        # Vercel 서버리스에서는 백그라운드 task 메모리가 보장되지 않아 인라인 실행한다.
-        await _run_pipeline_for_product(product_key)
-    else:
-        asyncio.create_task(_run_pipeline_for_product(product_key))
-    return JSONResponse({"ok": True, "message": "?????? ??????."})
+    try:
+        if _pipeline_tasks.get(product_key, {}).get("status") == "running":
+            raise HTTPException(status_code=409, detail="?????? ?? ?? ????.")
+        _pipeline_tasks[product_key] = {
+            "status": "running", "step": "init", "step_label": "?? ?...",
+            "result": None, "refs": [], "pdf": None,
+        }
+        if _IS_VERCEL:
+            # Vercel 서버리스에서는 백그라운드 task 메모리가 보장되지 않아 인라인 실행한다.
+            await _run_pipeline_for_product(product_key)
+        else:
+            asyncio.create_task(_run_pipeline_for_product(product_key))
+        return JSONResponse({"ok": True, "message": "?????? ??????."})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        return JSONResponse({"ok": False, "detail": str(exc)[:200]}, status_code=500)
 
 
 @app.get("/api/pipeline/{product_key}/status")
@@ -1060,44 +1070,47 @@ async def generate_p2_report(body: P2ReportBody) -> JSONResponse:
 
     from report_generator import render_p2_pdf
 
-    _ts = datetime.now(_tz_p2.utc).strftime("%Y%m%d_%H%M%S")
-    _reports_dir = REPORTS_DIR
-    _reports_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        _ts = datetime.now(_tz_p2.utc).strftime("%Y%m%d_%H%M%S")
+        _reports_dir = REPORTS_DIR
+        _reports_dir.mkdir(parents=True, exist_ok=True)
 
-    _cc = (body.country or "HU").strip().upper()
-    pdf_name = "hu02.pdf"
-    pdf_path = _reports_dir / pdf_name
+        _cc = (body.country or "HU").strip().upper()
+        pdf_name = "hu02.pdf"
+        pdf_path = _reports_dir / pdf_name
 
-    _macro = (body.macro_text or "").strip()
-    if not _macro:
-        _macro = (
-            "?????? EU ?????? NEAK(???????) ??????? ?????????? ??????? ??????????? "
-            "KUP?????? USD?????? ?? ??????, ???ERP?????? HUF?EUR?????????????????"
-        )
+        _macro = (body.macro_text or "").strip()
+        if not _macro:
+            _macro = (
+                "?????? EU ?????? NEAK(???????) ??????? ?????????? ??????? ??????????? "
+                "KUP?????? USD?????? ?? ??????, ???ERP?????? HUF?EUR?????????????????"
+            )
 
-    p2_data: dict[str, Any] = {
-        "product_name":  body.product_name,
-        "inn_name":      body.inn_name,
-        "verdict":       body.verdict,
-        "seg_label":     body.seg_label,
-        "base_price":    body.base_price,
-        "formula_str":   body.formula_str,
-        "mode_label":    body.mode_label,
-        "macro_text":    _macro,
-        "scenarios":     body.scenarios,
-        "ai_rationale":  body.ai_rationale,
-        "country":       _cc,
-    }
-    if body.sections:
-        p2_data["sections"] = body.sections
-    if body.usd_huf is not None:
-        p2_data["usd_huf"] = body.usd_huf
+        p2_data: dict[str, Any] = {
+            "product_name":  body.product_name,
+            "inn_name":      body.inn_name,
+            "verdict":       body.verdict,
+            "seg_label":     body.seg_label,
+            "base_price":    body.base_price,
+            "formula_str":   body.formula_str,
+            "mode_label":    body.mode_label,
+            "macro_text":    _macro,
+            "scenarios":     body.scenarios,
+            "ai_rationale":  body.ai_rationale,
+            "country":       _cc,
+        }
+        if body.sections:
+            p2_data["sections"] = body.sections
+        if body.usd_huf is not None:
+            p2_data["usd_huf"] = body.usd_huf
 
-    p2_data = _sanitize_p2_payload(p2_data)
-    await asyncio.to_thread(render_p2_pdf, p2_data, pdf_path)
-    await asyncio.to_thread(_upload_report_to_storage, pdf_path)
+        p2_data = _sanitize_p2_payload(p2_data)
+        await asyncio.to_thread(render_p2_pdf, p2_data, pdf_path)
+        await asyncio.to_thread(_upload_report_to_storage, pdf_path)
 
-    return JSONResponse({"ok": True, "pdf": pdf_name})
+        return JSONResponse({"ok": True, "pdf": pdf_name})
+    except Exception as exc:
+        return JSONResponse({"ok": False, "detail": str(exc)[:200]}, status_code=500)
 
 
 # ?????2?? AI ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????

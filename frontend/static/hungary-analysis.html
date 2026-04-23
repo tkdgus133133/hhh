@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>헝가리 수출 적합성 분석 — UPharma Export AI</title>
+  <link rel="stylesheet" href="style.css?v=13"/>
+</head>
+<body>
+<div class="app">
+
+<header class="topbar">
+  <div class="brand">
+    <img src="images/logo.png" class="brand-logo" alt="한국유나이티드제약 로고">
+    <div class="brand-text">
+      <h1>한국유나이티드제약(주) 해외 영업·마케팅 대시보드</h1>
+    </div>
+  </div>
+  <div class="topbar-r">
+    <a href="index.html" class="pill" style="text-decoration:none;color:inherit;" title="메인 대시보드">⌂ <span>Home</span></a>
+    <div class="pill">
+      <svg class="flag-emoji" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3 2" width="24" height="16" style="border-radius:2px;display:inline-block;">
+        <rect width="3" height="2" fill="#CE2939"></rect>
+        <rect width="3" height="1.333" fill="#FFFFFF" y="0.333"></rect>
+        <rect width="3" height="0.667" fill="#477050" y="1.333"></rect>
+      </svg>
+      <span>Hungary</span>
+    </div>
+  </div>
+</header>
+
+<main class="main">
+
+  <div id="main" class="page on">
+    <div class="dashboard-grid">
+
+      <!-- ── 왼쪽: 품목 선택 + 제품·경쟁사 ── -->
+      <div class="col-left">
+
+        <div class="process-section">
+          <div class="process-header">
+            <div class="process-header-l">
+              <span class="process-num">01</span>
+              <div>
+                <div class="process-title">헝가리 시장 분석</div>
+                <div class="process-sub">품목 선택 · PRODUCT_DATA · COMPETITOR_DATA</div>
+              </div>
+            </div>
+          </div>
+          <div class="process-body" id="hu-pb-1">
+
+            <div class="selector-card" style="margin-bottom:10px;">
+              <div class="selector-label">품목 선택</div>
+              <div class="selector-row">
+                <select id="hu-product-select" aria-label="헝가리 분석 품목"></select>
+              </div>
+              <div id="hu-product-tabs" class="p2-tab-row" style="margin-top:14px;"></div>
+            </div>
+
+            <!-- 1공정 result-card 패턴 -->
+            <div class="result-card visible" style="margin-bottom:14px;display:block;">
+              <div class="card-title"><span class="card-title-dot"></span> PRODUCT_DATA · 제품 분석</div>
+
+              <div class="rs-block">
+                <div class="rs-block-label">판정 요약</div>
+                <div class="rs-product-row">
+                  <div id="hu-verdict-name" class="verdict-name">—</div>
+                  <div id="hu-verdict-inn" class="verdict-inn"></div>
+                </div>
+                <div class="rs-verdict-wrap" style="margin-top:12px;">
+                  <div class="traffic-light" aria-hidden="true">
+                    <div class="tl-lamp tl-red"    id="hu-tl-red"></div>
+                    <div class="tl-lamp tl-yellow" id="hu-tl-yellow"></div>
+                    <div class="tl-lamp tl-green"  id="hu-tl-green"></div>
+                  </div>
+                  <span id="hu-verdict-badge" class="verdict-badge v-none"></span>
+                </div>
+                <p id="hu-product-summary" style="margin-top:10px;font-size:11.5px;color:var(--muted);line-height:1.5;"></p>
+              </div>
+
+              <div id="hu-card-product-body"></div>
+            </div>
+
+            <div class="result-card visible" style="display:block;">
+              <div class="card-title"><span class="card-title-dot"></span> COMPETITOR_DATA · 경쟁 구도</div>
+              <div id="hu-card-competitor-body"></div>
+            </div>
+
+          </div>
+        </div>
+
+      </div><!-- /col-left -->
+
+      <!-- ── 오른쪽: STATIC ── -->
+      <div class="col-right">
+
+        <div class="process-section">
+          <div class="process-header">
+            <div class="process-header-l">
+              <span class="process-num">02</span>
+              <div>
+                <div class="process-title">요약 지표 · 근거</div>
+                <div class="process-sub">STATIC_DATA · NEAK · OGYEI · 근거 문헌</div>
+              </div>
+            </div>
+          </div>
+          <div class="process-body" id="hu-pb-2">
+            <div id="hu-card-static-body"></div>
+          </div>
+        </div>
+
+      </div><!-- /col-right -->
+
+    </div><!-- /dashboard-grid -->
+  </div><!-- /main page -->
+
+</main>
+
+</div>
+
+<script src="hungary-export-data.js"></script>
+<script src="hungary-analysis.js"></script>
+</body>
+</html>

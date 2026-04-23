@@ -1,0 +1,88 @@
+# 싱가포르 1공정 — 헌법 v3 (PDF) 기준 소스 메타
+# guardian_sg / watsons_sg / unity_sg 제거:
+#   처방의약품 판매 채널 아님 + playwright 크롤 불가 + static_fallback 라벨 오용 원인
+country: "SG"
+currency: "SGD"
+
+sources:
+  regulator_api:
+    tier: 1
+    url_seed: "https://www.hsa.gov.sg/"
+    auth: none
+    rate_limit_qps: 2.0
+    cron_slot: "0 23 * * *"
+
+  ndf_api:
+    tier: 1
+    url_seed: "https://www.ndf.gov.sg/"
+    auth: none
+    rate_limit_qps: 1.0
+    cron_slot: "5 23 * * *"
+
+  moh_drug_prices:
+    tier: 3
+    url_seed: "https://www.moh.gov.sg/cost-financing/healthcare-schemes-subsidies/drug-subsidies-and-medication-costs"
+    access_method: html_static
+    rate_limit_qps: 0.5
+    cron_slot: "10 23 * * *"
+    note: "접근 확인 전용 — 실제 약가 비공개"
+
+  moh_pdf:
+    tier: 2
+    url_seed: "https://www.moh.gov.sg/news-highlights"
+    access_method: pdf
+    cron_slot: "0 0 * * *"
+
+  gebiz_weekly:
+    tier: 1
+    url_seed: "https://www.gebiz.gov.sg/"
+    access_method: playwright
+    cron_slot: "0 4 * * 1"
+
+  gebiz_csv:
+    tier: 1
+    access_method: local_csv
+    path: "datas/GovernmentProcurementviaGeBIZ.csv"
+    note: "정부 공개 GeBIZ 낙찰 데이터 — 18,021건 (의약품 관련 200건 포함)"
+
+  gebiz_award:
+    tier: 1
+    url_seed: "https://www.gebiz.gov.sg/ptn/ppplisting"
+    access_method: playwright
+    cron_slot: "10 4 * * 1"
+
+  hsa_csv:
+    tier: 1
+    access_method: local_csv
+    path: "datas/ListingofRegisteredTherapeuticProducts.csv"
+    note: "HSA 등재 의약품 전체 목록 — 공식 공개 데이터"
+
+  healthhub_chas:
+    tier: 2
+    url_seed: "https://www.healthhub.sg/medication-devices-and-treatment/medications/"
+    access_method: html_static
+    rate_limit_qps: 0.5
+    cron_slot: "15 23 * * *"
+    note: "CHAS 보조금 맥락 + 의약품 정보 — 가격 미수록, 시장조사 보조용"
+
+  healthiersg_list:
+    tier: 2
+    url_seed: "https://www.healthiersg.gov.sg/enrolment/healthier-sg-chronic-tier/medication-list/"
+    access_method: jina_reader
+    rate_limit_qps: 0.5
+    cron_slot: "17 23 * * *"
+    note: "Healthier SG 만성질환 SDL 목록 — Jina 모드A(부분), PLAYWRIGHT_LIVE=1 시 전체"
+
+  pbs_reference:
+    tier: 3
+    url_seed: "https://www.pbs.gov.au/pbs/search"
+    access_method: html_static
+    rate_limit_qps: 0.33
+    cron_slot: "20 23 * * *"
+    note: "PBS Australia IRP 참조가격 — AUD 기준, SG 직접가격 아님. HSA·MOH IRP 벤치마크 활용"
+
+  basic_files:
+    tier: 2
+    access_method: local_pdf
+    path: "datas/basic_files/"
+    note: "8품목 제품 브로슈어 — 임상 근거 및 제품 규격"

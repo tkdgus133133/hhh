@@ -1,0 +1,228 @@
+{
+  "meta": {
+    "sources": [
+      "c:\\Users\\user\\Desktop\\hung\\DRUG_LIST_FOR_INTERNATIONAL_PRICE_COMPARISON_20250714.xlsx",
+      "c:\\Users\\user\\Desktop\\hung\\medicines-output-medicines-report_en (1).xlsx",
+      "c:\\Users\\user\\Desktop\\hung\\tk_lista.csv"
+    ],
+    "generated_at": "2026-04-22T03:18:33.979211+00:00"
+  },
+  "rows": [
+    {
+      "product_id": "SG_omethyl_omega3_2g",
+      "trade_name": "Omethyl Cutielet",
+      "active_ingredient": "Omega-3-EE90 2g",
+      "inn_name": "Omega-3-EE90 2g",
+      "strength": "disulfiram 500 mg",
+      "dosage_form": "tablet",
+      "market_segment": "병원/약국/조달",
+      "registration_number": "OGYI-T-03201/02",
+      "manufacturer": "neuraxpharm hungary korlátolt felelősségű társaság",
+      "country_specific": {
+        "atc": "N07BB01",
+        "therapeutic_area": "",
+        "hsa_reg": "매칭 327건",
+        "key_risk": "매칭 건수 기반 자동 집계",
+        "product_type": "일반제"
+      },
+      "raw_payload": {
+        "price_rows": 33,
+        "ema_rows": 21,
+        "registry_rows": 327
+      },
+      "country": "HU",
+      "source_name": "HU:kup_pipeline",
+      "source_url": "local://DRUG_LIST_FOR_INTERNATIONAL_PRICE_COMPARISON_20250714.xlsx+medicines-output-medicines-report_en (1).xlsx+tk_lista.csv/SG_omethyl_omega3_2g",
+      "deleted_at": null
+    },
+    {
+      "product_id": "SG_gadvoa_gadobutrol_604",
+      "trade_name": "Gadvoa Inj.",
+      "active_ingredient": "Gadobutrol 604.72mg",
+      "inn_name": "Gadobutrol 604.72mg",
+      "strength": "gadobutrol 9070,8 mg",
+      "dosage_form": "solution for injection",
+      "market_segment": "병원/약국/조달",
+      "registration_number": "OGYI-T-07793/04",
+      "manufacturer": "bayer aktiengesellschaft",
+      "country_specific": {
+        "atc": "V08CA09",
+        "therapeutic_area": "",
+        "hsa_reg": "매칭 5건",
+        "key_risk": "매칭 건수 기반 자동 집계",
+        "product_type": "일반제"
+      },
+      "raw_payload": {
+        "price_rows": 3,
+        "ema_rows": 0,
+        "registry_rows": 5
+      },
+      "country": "HU",
+      "source_name": "HU:kup_pipeline",
+      "source_url": "local://DRUG_LIST_FOR_INTERNATIONAL_PRICE_COMPARISON_20250714.xlsx+medicines-output-medicines-report_en (1).xlsx+tk_lista.csv/SG_gadvoa_gadobutrol_604",
+      "deleted_at": null
+    },
+    {
+      "product_id": "SG_sereterol_activair",
+      "trade_name": "Sereterol Activair",
+      "active_ingredient": "Fluticasone+Salmeterol",
+      "inn_name": "Fluticasone+Salmeterol",
+      "strength": "fluticasone 0,05 mg",
+      "dosage_form": "nasal spray, suspension",
+      "market_segment": "병원/약국/조달",
+      "registration_number": "OGYI-T-22596/04",
+      "manufacturer": "glaxosmithkline trading services limited",
+      "country_specific": {
+        "atc": "R01AD08",
+        "therapeutic_area": "",
+        "hsa_reg": "매칭 115건",
+        "key_risk": "매칭 건수 기반 자동 집계",
+        "product_type": "일반제"
+      },
+      "raw_payload": {
+        "price_rows": 40,
+        "ema_rows": 12,
+        "registry_rows": 115
+      },
+      "country": "HU",
+      "source_name": "HU:kup_pipeline",
+      "source_url": "local://DRUG_LIST_FOR_INTERNATIONAL_PRICE_COMPARISON_20250714.xlsx+medicines-output-medicines-report_en (1).xlsx+tk_lista.csv/SG_sereterol_activair",
+      "deleted_at": null
+    },
+    {
+      "product_id": "SG_hydrine_hydroxyurea_500",
+      "trade_name": "Hydrine",
+      "active_ingredient": "Hydroxyurea 500mg",
+      "inn_name": "Hydroxyurea 500mg",
+      "strength": "-",
+      "dosage_form": "",
+      "market_segment": "병원/약국/조달",
+      "registration_number": "",
+      "manufacturer": "",
+      "country_specific": {
+        "atc": "",
+        "therapeutic_area": "",
+        "hsa_reg": "매칭 0건",
+        "key_risk": "매칭 건수 기반 자동 집계",
+        "product_type": "일반제"
+      },
+      "raw_payload": {
+        "price_rows": 0,
+        "ema_rows": 0,
+        "registry_rows": 0
+      },
+      "country": "HU",
+      "source_name": "HU:kup_pipeline",
+      "source_url": "local://DRUG_LIST_FOR_INTERNATIONAL_PRICE_COMPARISON_20250714.xlsx+medicines-output-medicines-report_en (1).xlsx+tk_lista.csv/SG_hydrine_hydroxyurea_500",
+      "deleted_at": null
+    },
+    {
+      "product_id": "SG_rosumeg_combigel",
+      "trade_name": "Rosumeg Combigel",
+      "active_ingredient": "Rosuvastatin+Omega-3-EE90",
+      "inn_name": "Rosuvastatin+Omega-3-EE90",
+      "strength": "rosuvastatin 10 mg",
+      "dosage_form": "film-coated tablet",
+      "market_segment": "병원/약국/조달",
+      "registration_number": "OGYI-T-23413/01",
+      "manufacturer": "richter gedeon vegyészeti gyár nyilvánosan működő részvénytársaság",
+      "country_specific": {
+        "atc": "C10AA07",
+        "therapeutic_area": "",
+        "hsa_reg": "매칭 559건",
+        "key_risk": "매칭 건수 기반 자동 집계",
+        "product_type": "일반제"
+      },
+      "raw_payload": {
+        "price_rows": 93,
+        "ema_rows": 0,
+        "registry_rows": 559
+      },
+      "country": "HU",
+      "source_name": "HU:kup_pipeline",
+      "source_url": "local://DRUG_LIST_FOR_INTERNATIONAL_PRICE_COMPARISON_20250714.xlsx+medicines-output-medicines-report_en (1).xlsx+tk_lista.csv/SG_rosumeg_combigel",
+      "deleted_at": null
+    },
+    {
+      "product_id": "SG_atmeg_combigel",
+      "trade_name": "Atmeg Combigel",
+      "active_ingredient": "Atorvastatin+Omega-3-EE90",
+      "inn_name": "Atorvastatin+Omega-3-EE90",
+      "strength": "atorvastatin 40 mg",
+      "dosage_form": "film-coated tablet",
+      "market_segment": "병원/약국/조달",
+      "registration_number": "OGYI-T-21844/02",
+      "manufacturer": "viatris healthcare limited",
+      "country_specific": {
+        "atc": "C10AA05",
+        "therapeutic_area": "",
+        "hsa_reg": "매칭 232건",
+        "key_risk": "매칭 건수 기반 자동 집계",
+        "product_type": "일반제"
+      },
+      "raw_payload": {
+        "price_rows": 51,
+        "ema_rows": 0,
+        "registry_rows": 232
+      },
+      "country": "HU",
+      "source_name": "HU:kup_pipeline",
+      "source_url": "local://DRUG_LIST_FOR_INTERNATIONAL_PRICE_COMPARISON_20250714.xlsx+medicines-output-medicines-report_en (1).xlsx+tk_lista.csv/SG_atmeg_combigel",
+      "deleted_at": null
+    },
+    {
+      "product_id": "SG_ciloduo_cilosta_rosuva",
+      "trade_name": "Ciloduo",
+      "active_ingredient": "Cilostazol+Rosuvastatin",
+      "inn_name": "Cilostazol+Rosuvastatin",
+      "strength": "cilostazol 100 mg",
+      "dosage_form": "tablet",
+      "market_segment": "병원/약국/조달",
+      "registration_number": "OGYI-T-22922/01",
+      "manufacturer": "teva gyógyszergyár zártkörűen működő részvénytársaság",
+      "country_specific": {
+        "atc": "B01AC23",
+        "therapeutic_area": "",
+        "hsa_reg": "매칭 19건",
+        "key_risk": "매칭 건수 기반 자동 집계",
+        "product_type": "일반제"
+      },
+      "raw_payload": {
+        "price_rows": 5,
+        "ema_rows": 0,
+        "registry_rows": 19
+      },
+      "country": "HU",
+      "source_name": "HU:kup_pipeline",
+      "source_url": "local://DRUG_LIST_FOR_INTERNATIONAL_PRICE_COMPARISON_20250714.xlsx+medicines-output-medicines-report_en (1).xlsx+tk_lista.csv/SG_ciloduo_cilosta_rosuva",
+      "deleted_at": null
+    },
+    {
+      "product_id": "SG_gastiin_cr_mosapride",
+      "trade_name": "Gastiin CR",
+      "active_ingredient": "Mosapride Citrate 15mg",
+      "inn_name": "Mosapride Citrate 15mg",
+      "strength": "-",
+      "dosage_form": "",
+      "market_segment": "병원/약국/조달",
+      "registration_number": "",
+      "manufacturer": "",
+      "country_specific": {
+        "atc": "",
+        "therapeutic_area": "",
+        "hsa_reg": "매칭 0건",
+        "key_risk": "매칭 건수 기반 자동 집계",
+        "product_type": "일반제"
+      },
+      "raw_payload": {
+        "price_rows": 0,
+        "ema_rows": 0,
+        "registry_rows": 0
+      },
+      "country": "HU",
+      "source_name": "HU:kup_pipeline",
+      "source_url": "local://DRUG_LIST_FOR_INTERNATIONAL_PRICE_COMPARISON_20250714.xlsx+medicines-output-medicines-report_en (1).xlsx+tk_lista.csv/SG_gastiin_cr_mosapride",
+      "deleted_at": null
+    }
+  ]
+}

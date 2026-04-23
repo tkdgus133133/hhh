@@ -34,6 +34,28 @@
 
 'use strict';
 
+/**
+ * 내부 API 호출 공통 래퍼.
+ * - Vercel 환경에서 캐시된 응답을 방지하기 위해 no-store를 강제한다.
+ * - 응답 코드가 실패면 즉시 예외로 올려 상위 try/catch에서 일관 처리한다.
+ */
+async function apiFetch(url, options = {}) {
+  const finalOptions = {
+    cache: 'no-store',
+    ...options,
+  };
+  const res = await fetch(url, finalOptions);
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const data = await res.clone().json();
+      detail = data?.detail || data?.error || '';
+    } catch (_) {}
+    throw new Error(detail || `HTTP ${res.status}`);
+  }
+  return res;
+}
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    §1. 상수 & 전역 상태
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -155,7 +177,7 @@ function _hideP2Loading() {
 
 async function loadMacro() {
   try {
-    const res  = await fetch('/api/macro');
+    const res  = await apiFetch('/api/macro');
     const data = await res.json();
 
     _setMacro('macro-gdp',        data.gdp_per_capita      || '$18,200',  'macro-gdp-src',    (data.gdp_source      || 'IMF / KSH·참고').replace(/^\d{4}\s*·\s*/, ''));
@@ -186,7 +208,7 @@ async function loadExchange() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ 조회 중…'; }
 
   try {
-    const res  = await fetch('/api/exchange');
+    const res  = await apiFetch('/api/exchange');
     const data = await res.json();
 
     // P2 환율 자동 채움용 전역 저장
@@ -1570,7 +1592,7 @@ async function _generateP2Pdf() {
 
 async function loadKeyStatus() {
   try {
-    const res  = await fetch('/api/keys/status');
+    const res  = await apiFetch('/api/keys/status');
     const data = await res.json();
     _applyKeyBadge('key-claude',     data.claude,     'Claude',     'API 키 설정됨',  'API 키 미설정 — 분석 불가');
     _applyKeyBadge('key-perplexity', data.perplexity, 'Perplexity', 'API 키 설정됨',  '미설정 — 논문 검색 생략');
@@ -1660,7 +1682,10 @@ async function runPipeline() {
   setProgress('db_load', 'running');
 
   try {
-    const res = await fetch(`/api/pipeline/${encodeURIComponent(productKey)}`, { method: 'POST' });
+    const res = await fetch(`/api/pipeline/${encodeURIComponent(productKey)}`, {
+      method: 'POST',
+      cache: 'no-store',
+    });
     if (!res.ok) {
       const d = await res.json().catch(() => ({}));
       // 이미 실행 중이면 기존 작업 폴링을 이어간다.
@@ -1698,7 +1723,7 @@ function _resetBtn() {
  */
 async function pollPipeline(productKey) {
   try {
-    const res = await fetch(`/api/pipeline/${encodeURIComponent(productKey)}/status`);
+    const res = await apiFetch(`/api/pipeline/${encodeURIComponent(productKey)}/status`);
     const d   = await res.json();
 
     if (d.status === 'idle') return;
@@ -1716,7 +1741,7 @@ async function pollPipeline(productKey) {
       clearInterval(_pollTimer);
       _hideP1Loading();
       for (const s of STEP_ORDER) setProgress(s, 'done');
-      const r2   = await fetch(`/api/pipeline/${encodeURIComponent(productKey)}/result`);
+      const r2   = await apiFetch(`/api/pipeline/${encodeURIComponent(productKey)}/result`);
       const data = await r2.json();
       renderResult(data.result, data.refs, data.pdf);
       _resetBtn();
@@ -1798,6 +1823,7 @@ async function runCustomPipeline() {
   try {
     const res = await fetch('/api/pipeline/custom', {
       method:  'POST',
+      cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ trade_name: tradeName, inn, dosage_form: dosage }),
     });
@@ -1818,7 +1844,7 @@ async function runCustomPipeline() {
 
 async function _pollCustomPipeline() {
   try {
-    const res = await fetch('/api/pipeline/custom/status');
+    const res = await apiFetch('/api/pipeline/custom/status');
     const d   = await res.json();
     if (d.status === 'idle') return;
 
@@ -1830,7 +1856,7 @@ async function _pollCustomPipeline() {
       clearInterval(_customPollTimer);
       _hideCustomLoading();
       for (const s of CUSTOM_STEP_ORDER) _setCustomProgress(s, 'done');
-      const r2   = await fetch('/api/pipeline/custom/result');
+      const r2   = await apiFetch('/api/pipeline/custom/result');
       const data = await r2.json();
       renderResult(data.result, data.refs, data.pdf);
       _resetCustomBtn();
@@ -2147,7 +2173,7 @@ async function loadPreviewStats() {
   }
 
   try {
-    const res = await fetch('/api/preview/stats');
+    const res = await apiFetch('/api/preview/stats');
     const d   = await res.json();
     _setPStat('psc-pop',    d.population?.value   || '9,600,000명', 'psc-pop-src',    d.population?.source   || 'World Bank');
     _setPStat('psc-pharma', d.pharma_market?.value || '$14.0B',     'psc-pharma-src', d.pharma_market?.source || 'World Bank');
@@ -2195,7 +2221,7 @@ async function loadPreviewNews() {
   if (btn) btn.disabled = true;
   listEl.innerHTML = '<div class="pvnews-loading">뉴스 로드 중…</div>';
   try {
-    const res  = await fetch('/api/news');
+    const res  = await apiFetch('/api/news');
     const data = await res.json();
     if (!data.ok || !data.items?.length) {
       listEl.innerHTML = `<div class="pvnews-empty">${data.error || '뉴스를 불러올 수 없습니다.'}</div>`;
@@ -2230,7 +2256,7 @@ async function loadNews() {
   listEl.innerHTML = '<div class="irow" style="color:var(--muted);font-size:12px;text-align:center;padding:20px 0;">뉴스 로드 중…</div>';
 
   try {
-    const res  = await fetch('/api/news');
+    const res  = await apiFetch('/api/news');
     const data = await res.json();
 
     if (!data.ok || !data.items?.length) {
@@ -2443,7 +2469,7 @@ function _buildBuyerAnalysisContext(productKey) {
 /* 페이지 로드 시 실행 중인 파이프라인 자동 감지 — 내가 시작한 작업만 재개 */
 (async function _p3AutoResume() {
   try {
-    const res  = await fetch('/api/buyers/status');
+    const res  = await apiFetch('/api/buyers/status');
     const data = await res.json();
     const myTaskId = sessionStorage.getItem('p3_task_id');
     const isMyTask = myTaskId && myTaskId === data.task_id;
@@ -2469,7 +2495,7 @@ function _buildBuyerAnalysisContext(productKey) {
 
 async function _pollP3() {
   try {
-    const res  = await fetch('/api/buyers/status');
+    const res  = await apiFetch('/api/buyers/status');
     const data = await res.json();
 
     const stepOrder = ['crawl', 'enrich', 'rank', 'report'];
@@ -2704,8 +2730,11 @@ const _PRODUCT_COUNTRY_MAP = {
     });
   }
 })();
-loadNews();             // 시장 뉴스 즉시 로드
-loadPreviewStats();     // 프리뷰 통계 로드
-loadPreviewNews();      // 프리뷰 뉴스 로드
+// 초기 진입 시 네트워크 작업을 병렬화해 로딩 체감 속도를 개선한다.
+Promise.all([
+  loadNews(),
+  loadPreviewStats(),
+  loadPreviewNews(),
+]).catch(() => {});
 // Leaflet 지도 초기화 — 페이지 준비 완료 후 실행
 setTimeout(initPreviewMap, 300);

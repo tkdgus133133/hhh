@@ -21,7 +21,7 @@ except ImportError:
     pass
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -72,6 +72,17 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def _disable_api_cache(request: Request, call_next):
+    """Vercel/CDN 캐시로 인한 상태 불일치를 방지한다."""
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 async def _emit(event: dict[str, Any]) -> None:
     payload = {**event, "ts": time.time()}
     lock = _state["lock"]
@@ -83,7 +94,7 @@ async def _emit(event: dict[str, Any]) -> None:
             _state["events"] = _state["events"][-400:]
 
 
-_COMBINED_COVER_TEMPLATE = Path(r"c:\Users\user\Desktop\hungaaaaa.pdf")
+_COMBINED_COVER_TEMPLATE = ROOT / "reports" / "hu_cover_template.pdf"
 _IS_VERCEL = bool(_os.environ.get("VERCEL", "").strip())
 
 

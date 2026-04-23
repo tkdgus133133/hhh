@@ -12,6 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 FONTS_DIR = ROOT / "fonts"
+PUBLIC_FONTS_DIR = ROOT / "public" / "fonts"
 
 # 다운로드할 폰트 목록: (저장파일명, 다운로드 URL)
 FONTS = [
@@ -27,24 +28,35 @@ FONTS = [
 
 
 def main() -> int:
-    FONTS_DIR.mkdir(exist_ok=True)
+    FONTS_DIR.mkdir(parents=True, exist_ok=True)
+    PUBLIC_FONTS_DIR.mkdir(parents=True, exist_ok=True)
     success = True
     for filename, url in FONTS:
-        dest = FONTS_DIR / filename
-        if dest.exists() and dest.stat().st_size > 10_000:
-            print(f"[fonts] Already exists: {dest} ({dest.stat().st_size:,} bytes)")
-            continue
-        print(f"[fonts] Downloading {filename} from {url} ...")
-        try:
-            urllib.request.urlretrieve(url, str(dest))
-            size = dest.stat().st_size
-            print(f"[fonts] OK: {dest} ({size:,} bytes)")
-            if size < 10_000:
-                print(f"[fonts] WARN: {filename} seems too small ({size} bytes), may be corrupt", file=sys.stderr)
+        targets = [FONTS_DIR / filename, PUBLIC_FONTS_DIR / filename]
+        primary = targets[0]
+        if primary.exists() and primary.stat().st_size > 10_000:
+            print(f"[fonts] Already exists: {primary} ({primary.stat().st_size:,} bytes)")
+        else:
+            print(f"[fonts] Downloading {filename} from {url} ...")
+            try:
+                urllib.request.urlretrieve(url, str(primary))
+                size = primary.stat().st_size
+                print(f"[fonts] OK: {primary} ({size:,} bytes)")
+                if size < 10_000:
+                    print(f"[fonts] WARN: {filename} seems too small ({size} bytes), may be corrupt", file=sys.stderr)
+                    success = False
+            except Exception as exc:
+                print(f"[fonts] WARN: {filename} download failed: {exc}", file=sys.stderr)
                 success = False
-        except Exception as exc:
-            print(f"[fonts] WARN: {filename} download failed: {exc}", file=sys.stderr)
-            success = False
+                continue
+
+        for target in targets[1:]:
+            try:
+                target.write_bytes(primary.read_bytes())
+                print(f"[fonts] Synced: {target}")
+            except Exception as exc:
+                print(f"[fonts] WARN: sync failed for {target}: {exc}", file=sys.stderr)
+                success = False
     return 0 if success else 1
 
 

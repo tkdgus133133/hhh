@@ -19,9 +19,9 @@ env/
 reports/*.pdf
 reports/*.json
 
-# 폰트 (빌드 시 다운로드)
-fonts/*.ttf
-fonts/*.otf
+# 폰트 — 레포에 포함 (한글 PDF 렌더링)
+# fonts/*.ttf
+# fonts/*.otf
 
 # Claude Code 워크트리 (로컬 전용)
 .claude/worktrees/

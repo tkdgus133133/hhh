@@ -94,7 +94,7 @@ async def _emit(event: dict[str, Any]) -> None:
             _state["events"] = _state["events"][-400:]
 
 
-_COMBINED_COVER_TEMPLATE = ROOT / "reports" / "hu_cover_template.pdf"
+_COMBINED_COVER_TEMPLATE = ROOT / "assets" / "hu_cover_template.pdf"
 _IS_VERCEL = bool(_os.environ.get("VERCEL", "").strip())
 
 
@@ -2110,8 +2110,24 @@ async def download_combined_report() -> Any:
         try:
             from io import BytesIO
             from pypdf import PdfReader, PdfWriter  # type: ignore[import]
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
             from reportlab.lib.colors import Color
             from reportlab.pdfgen import canvas
+
+            # 한글 폰트 등록 (날짜 "년/월/일" 표기용)
+            _kr_font = "Helvetica"
+            for _fp in [
+                ROOT / "fonts" / "NanumGothic.ttf",
+                ROOT / "public" / "fonts" / "NanumGothic.ttf",
+            ]:
+                if _fp.is_file():
+                    try:
+                        pdfmetrics.registerFont(TTFont("CoverNanum", str(_fp)))
+                        _kr_font = "CoverNanum"
+                    except Exception:
+                        pass
+                    break
 
             reader = PdfReader(str(_COMBINED_COVER_TEMPLATE))
             if not reader.pages:
@@ -2124,9 +2140,11 @@ async def download_combined_report() -> Any:
             packet = BytesIO()
             c = canvas.Canvas(packet, pagesize=(w, h))
             c.setFillColor(Color(0.45, 0.45, 0.45))
-            c.setFont("Helvetica", 14)
-            # '한국유나이티드제약' 아래 위치에 실시간 날짜를 중앙 정렬로 표시
-            c.drawCentredString(w * 0.5, h * 0.205, datetime.now(_tz_c.utc).strftime("%Y-%m-%d"))
+            c.setFont(_kr_font, 13)
+            now = datetime.now(_tz_c.utc)
+            date_str = f"{now.year}년 {now.month:02d}월 {now.day:02d}일"
+            # '한국유나이티드제약' 바로 아래 위치에 날짜를 중앙 정렬로 표시
+            c.drawCentredString(w * 0.5, h * 0.42, date_str)
             c.save()
             packet.seek(0)
 

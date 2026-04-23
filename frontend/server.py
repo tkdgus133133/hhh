@@ -870,6 +870,18 @@ def _latest_report_pdf() -> Path | None:
     return _latest_p1_market_research_pdf(REPORTS_DIR)
 
 
+def _latest_p2_pdf(reports_dir: Path) -> Path | None:
+    """가격산출(P2) PDF 중 최신 파일을 반환."""
+    candidates: list[Path] = []
+    fixed = reports_dir / "hu02.pdf"
+    if fixed.is_file():
+        candidates.append(fixed)
+    candidates.extend([p for p in reports_dir.glob("hu_p2_*.pdf") if p.is_file()])
+    if not candidates:
+        return None
+    return sorted(candidates, key=lambda p: p.stat().st_mtime, reverse=True)[0]
+
+
 class ReportBody(BaseModel):
     run_analysis: bool = False
     use_perplexity: bool = False
@@ -924,6 +936,7 @@ async def download_report(name: str | None = None, inline: bool = False) -> Any:
     if name:
         req_name = Path(name).name
         target = reports_dir / req_name
+        is_p2_request = (req_name == "hu02.pdf" or req_name.startswith("hu_p2_"))
         if target.is_file():
             return FileResponse(
                 str(target),
@@ -977,6 +990,19 @@ async def download_report(name: str | None = None, inline: bool = False) -> Any:
                     filename=latest_by_token.name,
                     content_disposition_type=disp,
                 )
+        if is_p2_request:
+            latest_p2 = _latest_p2_pdf(reports_dir)
+            if latest_p2:
+                return FileResponse(
+                    str(latest_p2),
+                    media_type="application/pdf",
+                    filename=latest_p2.name,
+                    content_disposition_type=disp,
+                )
+            raise HTTPException(
+                status_code=404,
+                detail="가격산출 PDF가 없습니다. 먼저 AI 가격 산출(/api/p2/pipeline 또는 /api/p2/report)을 실행하세요.",
+            )
 
     latest = _latest_report_pdf()
     if not latest:

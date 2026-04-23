@@ -35,6 +35,7 @@ import os as _os
 # PDF/JSON ?? (Vercel ? ????: ???? REPORTS_DIR=/tmp/upharma_reports ??)
 _rde = (_os.environ.get("REPORTS_DIR") or _os.environ.get("UPHARMA_REPORTS_DIR") or "").strip()
 REPORTS_DIR: Path = Path(_rde).expanduser().resolve() if _rde else (ROOT / "reports")
+REPORTS_BUCKET = (_os.environ.get("REPORTS_BUCKET") or "reports").strip() or "reports"
 
 from frontend.dashboard_sites import DASHBOARD_SITES
 
@@ -103,6 +104,40 @@ def _sanitize_p2_payload(value: Any) -> Any:
     if isinstance(value, dict):
         return {k: _sanitize_p2_payload(v) for k, v in value.items()}
     return value
+
+
+def _upload_report_to_storage(local_path: Path) -> None:
+    """로컬 보고서 파일을 Supabase Storage에 업로드 (Vercel 영속성 보완)."""
+    if not local_path.is_file():
+        return
+    try:
+        from utils.db import get_client
+        sb = get_client()
+        with open(local_path, "rb") as fin:
+            sb.storage.from_(REPORTS_BUCKET).upload(
+                path=local_path.name,
+                file=fin,
+                file_options={"upsert": "true", "content-type": "application/pdf"},
+            )
+    except Exception:
+        # 업로드 실패는 로컬 응답 자체를 막지 않는다.
+        pass
+
+
+def _download_report_from_storage(name: str) -> bytes | None:
+    """Supabase Storage에서 보고서 파일 바이트를 조회."""
+    safe = Path(str(name or "")).name
+    if not safe:
+        return None
+    try:
+        from utils.db import get_client
+        sb = get_client()
+        blob = sb.storage.from_(REPORTS_BUCKET).download(safe)
+        if isinstance(blob, (bytes, bytearray)) and blob:
+            return bytes(blob)
+    except Exception:
+        return None
+    return None
 
 
 # ?????API ??????????? ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????
@@ -861,6 +896,15 @@ async def download_report(name: str | None = None, inline: bool = False) -> Any:
                 filename=target.name,
                 content_disposition_type=disp,
             )
+        # Vercel 환경에서는 로컬 파일이 사라질 수 있어 Storage에서 복원 시도
+        blob = _download_report_from_storage(Path(name).name)
+        if blob:
+            import io
+            return StreamingResponse(
+                io.BytesIO(blob),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"{disp}; filename={Path(name).name}"},
+            )
 
     latest = _latest_report_pdf()
     if not latest:
@@ -934,6 +978,7 @@ async def generate_p2_report(body: P2ReportBody) -> JSONResponse:
 
     p2_data = _sanitize_p2_payload(p2_data)
     await asyncio.to_thread(render_p2_pdf, p2_data, pdf_path)
+    await asyncio.to_thread(_upload_report_to_storage, pdf_path)
 
     return JSONResponse({"ok": True, "pdf": pdf_name})
 
@@ -1414,6 +1459,7 @@ async def _run_p2_ai_pipeline(
         )
         from report_generator import render_p2_pdf
         await asyncio.to_thread(render_p2_pdf, p2_data, pdf_path)
+        await asyncio.to_thread(_upload_report_to_storage, pdf_path)
 
         _p2_ai_task["pdf"] = pdf_name
         _p2_ai_task.update({"status": "done", "step": "done", "step_label": "??"})

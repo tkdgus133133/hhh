@@ -539,9 +539,14 @@ def render_pdf(report: dict, out_path: Path) -> None:
         spaceAfter=2,
     )
 
+    def _norm_text(text: str) -> str:
+        """PDF 렌더 직전 깨진 대체문자(U+FFFD) 정리."""
+        s = str(text or "")
+        return s.replace("\ufffd", " ")
+
     def _rx(text: str) -> str:
         return (
-            (text or "")
+            _norm_text(text)
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")
@@ -549,13 +554,13 @@ def render_pdf(report: dict, out_path: Path) -> None:
 
     def _trunc(text: str, limit: int = 800) -> str:
         """텍스트를 limit자로 잘라 ReportLab 레이아웃 무한루프를 방지."""
-        s = (text or "").strip()
+        s = _norm_text(text).strip()
         return s if len(s) <= limit else s[:limit] + "…"
 
     def _clean_prose(text: str) -> str:
         """AI 생성 텍스트에서 불릿/줄바꿈 아티팩트를 제거해 깔끔한 산문으로 변환."""
         import re
-        s = (text or "").strip()
+        s = _norm_text(text).strip()
         if not s:
             return s
         # 줄 단위로 쪼개서 각 줄의 앞 불릿 마커 제거
@@ -827,7 +832,8 @@ def render_cover_pdf(out_path: Path, product_name: str = "") -> None:
         return ParagraphStyle(name, **kw)
 
     def _rx(text: str) -> str:
-        return (text or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        s = str(text or "").replace("\ufffd", " ")
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     generated_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
@@ -911,7 +917,7 @@ def render_p2_pdf(p2_data: dict, out_path: Path) -> None:
 
     def _rx(text: str) -> str:
         return (
-            (text or "")
+            str(text or "").replace("\ufffd", " ")
             .replace("&", "&amp;")
             .replace("<", "&lt;")
             .replace(">", "&gt;")

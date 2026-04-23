@@ -786,7 +786,11 @@ async def trigger_custom_pipeline(body: CustomDrugBody) -> JSONResponse:
         "status": "running", "step": "analyze", "step_label": "?? ?...",
         "result": None, "refs": [], "pdf": None,
     }
-    asyncio.create_task(_run_custom_pipeline(body.trade_name, body.inn, body.dosage_form))
+    if _IS_VERCEL:
+        # Vercel 서버리스에서는 백그라운드 task 메모리가 보장되지 않아 인라인 실행한다.
+        await _run_custom_pipeline(body.trade_name, body.inn, body.dosage_form)
+    else:
+        asyncio.create_task(_run_custom_pipeline(body.trade_name, body.inn, body.dosage_form))
     return JSONResponse({"ok": True})
 
 
@@ -825,7 +829,11 @@ async def trigger_pipeline(product_key: str) -> JSONResponse:
         "status": "running", "step": "init", "step_label": "?? ?...",
         "result": None, "refs": [], "pdf": None,
     }
-    asyncio.create_task(_run_pipeline_for_product(product_key))
+    if _IS_VERCEL:
+        # Vercel 서버리스에서는 백그라운드 task 메모리가 보장되지 않아 인라인 실행한다.
+        await _run_pipeline_for_product(product_key)
+    else:
+        asyncio.create_task(_run_pipeline_for_product(product_key))
     return JSONResponse({"ok": True, "message": "?????? ??????."})
 
 

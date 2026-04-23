@@ -80,6 +80,8 @@ const STEP_ORDER = ['db_load', 'analyze', 'refs', 'report'];
 
 let _pollTimer  = null;   // 파이프라인 폴링 타이머
 let _currentKey = null;   // 현재 선택된 product_key
+let _pollStartedAt = 0;
+let _pollIdleCount = 0;
 
 // P2 3열 시나리오용 원본 데이터 (시장별)
 let _p2ScenarioRawByMarket = {
@@ -1692,6 +1694,8 @@ async function runPipeline() {
       if (res.status === 409) {
         _showP1Note('이미 분석이 실행 중입니다. 진행 상태를 계속 확인합니다…', false);
         if (_pollTimer) clearInterval(_pollTimer);
+        _pollStartedAt = Date.now();
+        _pollIdleCount = 0;
         _pollTimer = setInterval(() => pollPipeline(productKey), 2500);
         return;
       }
@@ -1702,6 +1706,8 @@ async function runPipeline() {
       _resetBtn();
       return;
     }
+    _pollStartedAt = Date.now();
+    _pollIdleCount = 0;
     _pollTimer = setInterval(() => pollPipeline(productKey), 2500);
   } catch (e) {
     console.error('요청 실패:', e);
@@ -1726,7 +1732,18 @@ async function pollPipeline(productKey) {
     const res = await apiFetch(`/api/pipeline/${encodeURIComponent(productKey)}/status`);
     const d   = await res.json();
 
-    if (d.status === 'idle') return;
+    if (d.status === 'idle') {
+      _pollIdleCount += 1;
+      const elapsedSec = Math.floor((Date.now() - _pollStartedAt) / 1000);
+      if (_pollIdleCount >= 8 || elapsedSec >= 120) {
+        clearInterval(_pollTimer);
+        _hideP1Loading();
+        _showP1Note('⚠️ 시장조사 상태 조회가 만료되었습니다. Vercel 인스턴스 재시작으로 작업 상태가 사라졌을 수 있으니 다시 실행해 주세요.', true);
+        _resetBtn();
+      }
+      return;
+    }
+    _pollIdleCount = 0;
 
     // B2: 서버 step → 프론트 STEP_ORDER 매핑
     if      (d.step === 'db_load')  { setProgress('db_load',  'running'); }
@@ -1762,6 +1779,8 @@ async function pollPipeline(productKey) {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 let _customPollTimer = null;
+let _customPollStartedAt = 0;
+let _customPollIdleCount = 0;
 const CUSTOM_STEP_ORDER = ['analyze', 'refs', 'report'];
 
 function _setCustomProgress(step, status) {
@@ -1834,6 +1853,8 @@ async function runCustomPipeline() {
       _resetCustomBtn();
       return;
     }
+    _customPollStartedAt = Date.now();
+    _customPollIdleCount = 0;
     _customPollTimer = setInterval(_pollCustomPipeline, 2500);
   } catch (e) {
     console.error('요청 실패:', e);
@@ -1846,7 +1867,18 @@ async function _pollCustomPipeline() {
   try {
     const res = await apiFetch('/api/pipeline/custom/status');
     const d   = await res.json();
-    if (d.status === 'idle') return;
+    if (d.status === 'idle') {
+      _customPollIdleCount += 1;
+      const elapsedSec = Math.floor((Date.now() - _customPollStartedAt) / 1000);
+      if (_customPollIdleCount >= 8 || elapsedSec >= 120) {
+        clearInterval(_customPollTimer);
+        _hideCustomLoading();
+        _showP1Note('⚠️ 신약분석 상태 조회가 만료되었습니다. 다시 실행해 주세요.', true);
+        _resetCustomBtn();
+      }
+      return;
+    }
+    _customPollIdleCount = 0;
 
     if      (d.step === 'analyze') { _setCustomProgress('analyze', 'running'); }
     else if (d.step === 'refs')    { _setCustomProgress('analyze', 'done'); _setCustomProgress('refs', 'running'); }

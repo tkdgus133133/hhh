@@ -922,7 +922,8 @@ async def download_report(name: str | None = None, inline: bool = False) -> Any:
     reports_dir = REPORTS_DIR
     disp = "inline" if inline else "attachment"
     if name:
-        target = reports_dir / Path(name).name
+        req_name = Path(name).name
+        target = reports_dir / req_name
         if target.is_file():
             return FileResponse(
                 str(target),
@@ -931,14 +932,51 @@ async def download_report(name: str | None = None, inline: bool = False) -> Any:
                 content_disposition_type=disp,
             )
         # Vercel 환경에서는 로컬 파일이 사라질 수 있어 Storage에서 복원 시도
-        blob = _download_report_from_storage(Path(name).name)
+        blob = _download_report_from_storage(req_name)
         if blob:
             import io
             return StreamingResponse(
                 io.BytesIO(blob),
                 media_type="application/pdf",
-                headers={"Content-Disposition": f"{disp}; filename={Path(name).name}"},
+                headers={"Content-Disposition": f"{disp}; filename={req_name}"},
             )
+        # 구버전 SG 파일명 자동 보정
+        if "_SG_" in req_name:
+            alt_name = req_name.replace("_SG_", "_HU_")
+            alt_local = reports_dir / alt_name
+            if alt_local.is_file():
+                return FileResponse(
+                    str(alt_local),
+                    media_type="application/pdf",
+                    filename=alt_local.name,
+                    content_disposition_type=disp,
+                )
+            alt_blob = _download_report_from_storage(alt_name)
+            if alt_blob:
+                import io
+                return StreamingResponse(
+                    io.BytesIO(alt_blob),
+                    media_type="application/pdf",
+                    headers={"Content-Disposition": f"{disp}; filename={alt_name}"},
+                )
+        # 품목 토큰 기반 최신 P1 PDF fallback
+        import re as _re_p1_dl
+        m = _re_p1_dl.search(r"hu_report_(?:SG|HU)_(.+?)_\d{8}_\d{6}\.pdf$", req_name, _re_p1_dl.I)
+        if m:
+            token = m.group(1).lower()
+            candidates = sorted(
+                [p for p in _p1_market_research_pdf_paths(reports_dir) if token in p.name.lower()],
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            if candidates:
+                latest_by_token = candidates[0]
+                return FileResponse(
+                    str(latest_by_token),
+                    media_type="application/pdf",
+                    filename=latest_by_token.name,
+                    content_disposition_type=disp,
+                )
 
     latest = _latest_report_pdf()
     if not latest:

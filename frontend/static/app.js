@@ -384,6 +384,8 @@ function _renderCustomTodos(state) {
 
 const REPORTS_LS_KEY = 'hu_upharma_reports_v1';
 const REPORTS_LS_LEGACY_KEY = 'sg_upharma_reports_v1';
+const CLIENT_STORAGE_VERSION_KEY = 'hu_client_storage_version';
+const CLIENT_STORAGE_VERSION = '2026-04-23-v2';
 
 function _isHuReportEntry(entry) {
   if (!entry || typeof entry !== 'object') return false;
@@ -407,15 +409,46 @@ function _readReportsByKey(lsKey) {
   }
 }
 
+function _normalizeReportEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const next = { ...entry };
+  const type = String(next.report_type || '').trim();
+  const rawPdf = String(next.pdf_name || '').trim();
+  // 구버전 SG 파일명은 HU 규칙으로 정규화해 stale 링크를 줄인다.
+  if (rawPdf && type === 'p1' && rawPdf.startsWith('hu_report_SG_')) {
+    next.pdf_name = rawPdf.replace('hu_report_SG_', 'hu_report_HU_');
+  }
+  if (!_isHuReportEntry(next)) return null;
+  return next;
+}
+
+function _migrateClientStorageIfNeeded() {
+  const currentVersion = localStorage.getItem(CLIENT_STORAGE_VERSION_KEY) || '';
+  if (currentVersion === CLIENT_STORAGE_VERSION) return;
+
+  const migrated = _readReportsByKey(REPORTS_LS_KEY)
+    .map(_normalizeReportEntry)
+    .filter(Boolean);
+  localStorage.setItem(REPORTS_LS_KEY, JSON.stringify(migrated.slice(0, 30)));
+  // 오래된 세션 task_id는 재개 실패 원인이 되므로 초기화
+  sessionStorage.removeItem('p3_task_id');
+  localStorage.setItem(CLIENT_STORAGE_VERSION_KEY, CLIENT_STORAGE_VERSION);
+}
+
 function _loadReports() {
+  _migrateClientStorageIfNeeded();
   const current = _readReportsByKey(REPORTS_LS_KEY);
   if (current.length) return current;
 
   // 레거시 키에서 헝가리 보고서만 1회 마이그레이션
   const legacy = _readReportsByKey(REPORTS_LS_LEGACY_KEY);
   if (legacy.length) {
-    localStorage.setItem(REPORTS_LS_KEY, JSON.stringify(legacy.slice(0, 30)));
-    return legacy;
+    const normalized = legacy
+      .map(_normalizeReportEntry)
+      .filter(Boolean)
+      .slice(0, 30);
+    localStorage.setItem(REPORTS_LS_KEY, JSON.stringify(normalized));
+    return normalized;
   }
   return [];
 }

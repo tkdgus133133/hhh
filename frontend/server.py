@@ -419,60 +419,11 @@ async def api_news() -> JSONResponse:
     except Exception:
         pass  # Naver ??? ??Perplexity ???
 
-    # ??Perplexity ???
-    px_key = os.environ.get("PERPLEXITY_API_KEY", "").strip()
-    if not px_key:
-        return JSONResponse({
-            "ok": False,
-            "error": "?? ?? ??: Naver ?? ?? PERPLEXITY_API_KEY ???",
-            "items": [],
-        })
-
-    try:
-        payload = {
-            "model": "sonar-pro",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a Hungary pharmaceutical market analyst. "
-                        "Return ONLY a JSON array with up to 7 recent news items. "
-                        "All 'title' values MUST be written in Korean (?????."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        "Find the latest Hungary pharmaceutical market and regulatory news. "
-                        "Return a strict JSON array. Each item: title (Korean), source, date, link."
-                    ),
-                },
-            ],
-            "max_tokens": 900,
-            "temperature": 0.2,
-        }
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            resp = await client.post(
-                "https://api.perplexity.ai/chat/completions",
-                headers={"Authorization": f"Bearer {px_key}", "Content-Type": "application/json"},
-                json=payload,
-            )
-            resp.raise_for_status()
-            raw = resp.json()
-
-        content = str(
-            raw.get("choices", [{}])[0].get("message", {}).get("content", "")
-        )
-        items = _parse_perplexity_news_items(content)
-        if not items:
-            return JSONResponse({"ok": False, "error": "Perplexity ??? ??? ???", "items": []})
-
-        data = {"ok": True, "source": "perplexity", "items": items}
-        _news_cache["data"] = data
-        _news_cache["ts"]   = _time.time()
-        return JSONResponse(data)
-    except Exception as exc:
-        return JSONResponse({"ok": False, "error": str(exc)[:120], "items": []})
+    return JSONResponse({
+        "ok": False,
+        "error": "뉴스 조회 실패: 네이버 뉴스를 가져오지 못했습니다.",
+        "items": [],
+    })
 
 
 # ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
@@ -702,6 +653,7 @@ async def _run_pipeline_for_product(product_key: str) -> None:
             lambda: json_path.write_text(json.dumps(report_obj, ensure_ascii=False, indent=2), encoding="utf-8")
         )
         await asyncio.to_thread(render_pdf, report_obj, pdf_path)
+        await asyncio.to_thread(_upload_report_to_storage, pdf_path)
 
         task["pdf"] = pdf_name
         task.update({"status": "done", "step": "done", "step_label": "??"})
@@ -769,6 +721,7 @@ async def _run_custom_pipeline(trade_name: str, inn: str, dosage_form: str) -> N
             lambda: _json_path2.write_text(json.dumps(_report2, ensure_ascii=False, indent=2), encoding="utf-8")
         )
         await asyncio.to_thread(render_pdf, _report2, _pdf_path2)
+        await asyncio.to_thread(_upload_report_to_storage, _pdf_path2)
 
         _custom_task["pdf"] = _pdf_name2
         _custom_task.update({"status": "done", "step": "done", "step_label": "??"})
@@ -1020,6 +973,15 @@ async def download_report(name: str | None = None, inline: bool = False) -> Any:
                     content_disposition_type=disp,
                 )
         if is_p2_request:
+            # Vercel: Storage에서 hu02.pdf 복원 시도
+            p2_blob = _download_report_from_storage("hu02.pdf")
+            if p2_blob:
+                import io
+                return StreamingResponse(
+                    io.BytesIO(p2_blob),
+                    media_type="application/pdf",
+                    headers={"Content-Disposition": f"{disp}; filename=hu02.pdf"},
+                )
             latest_p2 = _latest_p2_pdf(reports_dir)
             if latest_p2:
                 return FileResponse(
@@ -1918,7 +1880,7 @@ async def _run_buyer_pipeline(
             emit=_log,
             hu_market_static=hu_enrich,
             max_concurrency=4 if _IS_VERCEL else 2,
-            use_perplexity=not _IS_VERCEL,
+            use_perplexity=False,
         )
         _buyer_task["all_candidates"] = enriched
 
@@ -2189,16 +2151,27 @@ async def buyer_report_download(name: str | None = None) -> Any:
                 media_type="application/pdf",
                 headers={"Content-Disposition": f"attachment; filename={Path(name).name}"},
             )
-    # ?? hu ??? ReportLab PDF(??? sg_* ??)
+    # 최신 로컬 파일 조회
     pdfs = sorted(
         reports_dir.glob("hu_buyers_*.pdf"), key=lambda p: p.stat().st_mtime, reverse=True
     )
-    if not pdfs:
-        raise HTTPException(404, "??? PDF? ????. ??? ??? ?? ?????.")
-    return FileResponse(
-        str(pdfs[0]), media_type="application/pdf",
-        filename=pdfs[0].name, content_disposition_type="attachment",
-    )
+    if pdfs:
+        return FileResponse(
+            str(pdfs[0]), media_type="application/pdf",
+            filename=pdfs[0].name, content_disposition_type="attachment",
+        )
+    # Vercel: 로컬에 없으면 task에서 파일명 확인 후 Storage 복원
+    buyer_pdf_name = _buyer_task.get("pdf") if _buyer_task else None
+    if buyer_pdf_name:
+        blob = _download_report_from_storage(buyer_pdf_name)
+        if blob:
+            import io
+            return StreamingResponse(
+                io.BytesIO(blob),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename={buyer_pdf_name}"},
+            )
+    raise HTTPException(404, "바이어 PDF가 없습니다. 바이어 탐색을 먼저 실행하세요.")
 
 
 @app.get("/")

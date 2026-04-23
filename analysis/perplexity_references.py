@@ -73,96 +73,8 @@ async def fetch_references(
     product_id: str,
     max_refs: int = 4,
 ) -> list[dict[str, str]]:
-    """Perplexity sonar-pro로 관련 논문·규제 사례 검색.
-
-    Returns:
-        [{"title", "url", "reason", "source"}, ...]
-        API 키 없으면 빈 리스트.
-    """
-    api_key = os.environ.get("PERPLEXITY_API_KEY")
-    if not api_key:
-        return []
-
-    query = _QUERIES.get(product_id)
-    if not query:
-        return []
-
-    try:
-        import httpx
-    except ImportError:
-        return []
-
-    focus = _QUERY_FOCUS.get(product_id, "clinical_evidence")
-
-    if focus == "regulatory_pathway":
-        system_msg = (
-            "You are a pharmaceutical regulatory expert specializing in Hungary and EU registration. "
-            "Focus on OGYEI, NEAK reimbursement context, EMA pathways, combination product registration, "
-            "and market entry precedents."
-        )
-        reason_instruction = (
-            "반드시 한국어로: 이 자료가 헝가리(OGYÉI/NEAK) 진입 경로 판단에 관련 있는 이유를 한 문장으로 요약"
-        )
-    else:
-        system_msg = (
-            "You are a pharmaceutical research assistant specializing in Hungary and EU markets. "
-            "Focus on clinical evidence, market data, and Hungary OGYEI/NEAK/EMA references."
-        )
-        reason_instruction = (
-            "반드시 한국어로: 이 논문/자료가 헝가리 수출 적합성 판단에 관련 있는 이유를 한 문장으로 요약"
-        )
-
-    prompt = f"""Find {max_refs} relevant academic papers, regulatory documents, or clinical studies for:
-"{query}"
-
-IMPORTANT: The "reason" field MUST be written in Korean (한국어). Do not use English for the reason field.
-
-Return ONLY valid JSON array, no other text:
-[
-  {{
-    "title": "<paper or document title in original language>",
-    "url": "<direct URL to paper, PubMed, or regulatory document>",
-    "reason": "<{reason_instruction} — 반드시 한국어 한 문장>",
-    "source": "<PubMed / Lancet / NEJM / HSA / MOH / WHO 등>"
-  }}
-]"""
-
-    try:
-        async with httpx.AsyncClient(timeout=25.0) as client:
-            resp = await client.post(
-                "https://api.perplexity.ai/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "sonar-pro",
-                    "messages": [
-                        {"role": "system", "content": system_msg},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "max_tokens": 800,
-                    "return_citations": True,
-                },
-            )
-            resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"].strip()
-
-            if "```" in content:
-                for part in content.split("```"):
-                    part = part.strip()
-                    if part.startswith("json"):
-                        part = part[4:].strip()
-                    if part.startswith("["):
-                        content = part
-                        break
-
-            import json
-            refs = json.loads(content)
-            return [r for r in refs if r.get("url")][:max_refs]
-
-    except Exception:
-        return []
+    """논문·규제 사례 검색. Perplexity 미사용 — 빈 리스트 반환."""
+    return []
 
 
 async def fetch_references_for_custom(
@@ -170,74 +82,13 @@ async def fetch_references_for_custom(
     inn: str,
     max_refs: int = 4,
 ) -> list[dict[str, str]]:
-    """신약(커스텀 입력) 논문·규제 사례 검색."""
-    api_key = os.environ.get("PERPLEXITY_API_KEY")
-    if not api_key:
-        return []
-    try:
-        import httpx
-    except ImportError:
-        return []
-
-    query = (
-        f"Hungary OGYEI and NEAK reimbursement status, EMA pathway, clinical evidence, "
-        f"and market data for {trade_name} ({inn}). Include registration precedents, "
-        f"formulary/reimbursement listing, and any Hungary or EU regulatory decisions."
-    )
-    prompt = f"""Find {max_refs} relevant academic papers, regulatory documents, or clinical studies for:
-"{query}"
-
-IMPORTANT: The "reason" field MUST be written in Korean (한국어). Do not use English for the reason field.
-
-Return ONLY valid JSON array, no other text:
-[
-  {{
-    "title": "<paper or document title in original language>",
-    "url": "<direct URL to paper, PubMed, or regulatory document>",
-    "reason": "<반드시 한국어로: 이 자료가 헝가리 OGYÉI/NEAK/EMA 등록 판단에 관련 있는 이유를 한 문장으로 요약>",
-    "source": "<PubMed / Lancet / NEJM / OGYEI / NEAK / EMA / WHO 등>"
-  }}
-]"""
-
-    try:
-        async with httpx.AsyncClient(timeout=25.0) as client:
-            resp = await client.post(
-                "https://api.perplexity.ai/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-                json={
-                    "model": "sonar-pro",
-                    "messages": [
-                        {"role": "system", "content": "You are a pharmaceutical regulatory expert specializing in Hungary OGYEI/NEAK and EMA."},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "max_tokens": 800,
-                    "return_citations": True,
-                },
-            )
-            resp.raise_for_status()
-            content = resp.json()["choices"][0]["message"]["content"].strip()
-            if "```" in content:
-                for part in content.split("```"):
-                    part = part.strip()
-                    if part.startswith("json"):
-                        part = part[4:].strip()
-                    if part.startswith("["):
-                        content = part
-                        break
-            import json as _json
-            refs = _json.loads(content)
-            return [r for r in refs if r.get("url")][:max_refs]
-    except Exception:
-        return []
+    """신약(커스텀 입력) 논문·규제 사례 검색. Perplexity 미사용 — 빈 리스트 반환."""
+    return []
 
 
 async def fetch_all_references(
     product_ids: list[str] | None = None,
 ) -> dict[str, list[dict[str, str]]]:
-    """8품목 전체 논문·규제 사례 검색. product_ids 미지정 시 전체."""
-    import asyncio
-
+    """8품목 전체 논문·규제 사례 검색. Perplexity 미사용 — 빈 dict 반환."""
     targets = product_ids or list(_QUERIES.keys())
-    tasks = {pid: fetch_references(pid) for pid in targets}
-    results = await asyncio.gather(*tasks.values())
-    return dict(zip(tasks.keys(), results))
+    return {pid: [] for pid in targets}

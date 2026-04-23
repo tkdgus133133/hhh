@@ -273,42 +273,8 @@ def _coerce_analysis_dict(obj: object) -> dict[str, Any] | None:
 # ── Perplexity 보조 검색 ──────────────────────────────────────────────────────
 
 async def _perplexity_search(query: str, api_key: str) -> str | None:
-    """Perplexity sonar-pro로 규제·시장 정보 검색. 실패 시 None."""
-    try:
-        import httpx
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": "sonar-pro",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a pharmaceutical regulatory expert. "
-                        "The export target is Hungary (EU). Focus on OGYÉI, NEAK, EMA, "
-                        "EU centralized/decentralized procedures, reimbursement. "
-                        "Do not add non-EU market detail unless a one-sentence global comparison is explicitly requested. "
-                        "Cite sources when available."
-                    ),
-                },
-                {"role": "user", "content": query},
-            ],
-            "max_tokens": 512,
-            "return_citations": True,
-        }
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            resp = await client.post(
-                "https://api.perplexity.ai/chat/completions",
-                headers=headers,
-                json=payload,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
-    except Exception:
-        return None
+    """Perplexity 보조 검색 — 미사용(속도 최적화)."""
+    return None
 
 
 # ── Claude 분석 (Primary) ────────────────────────────────────────────────────
@@ -744,7 +710,6 @@ async def analyze_product(
         }
 
     claude_key = _read_env_secret("CLAUDE_API_KEY", "ANTHROPIC_API_KEY")
-    perplexity_key = _read_env_secret("PERPLEXITY_API_KEY") if use_perplexity else None
     claude_model_id = _claude_analysis_model_id()
     claude_error_detail: str | None = None
 
@@ -798,33 +763,6 @@ async def analyze_product(
         )
         if result:
             analysis_model = claude_model_id
-
-    # Step 2: 조건부 판정 시 Perplexity 보조 검색 후 재분석
-    if (
-        result is not None
-        and perplexity_key
-        and result.get("verdict") == "조건부"
-        and claude_key
-    ):
-        query = (
-            f"Hungary OGYÉI (National Institute of Pharmacy) and NEAK reimbursement, "
-            f"EU/EMA MRP DCP access for {meta['trade_name']} ({meta['inn']}). "
-            f"European public procurement hospital formulary. EU and Hungary only."
-        )
-        perplexity_context = await _perplexity_search(query, perplexity_key)
-        if perplexity_context:
-            result2, err2 = await _claude_analyze(
-                meta, db_row, claude_key,
-                perplexity_context=perplexity_context,
-                static_context_text=static_context_text,
-                pbs_context_block=pbs_block,
-                model=claude_model_id,
-            )
-            if result2:
-                result = result2
-                analysis_model = f"{claude_model_id}+perplexity"
-            elif err2:
-                claude_error_detail = err2
 
     if result is not None and pbs_flat.get("pbs_listing_url"):
         src_list: list[Any] = list(result.get("sources") or [])

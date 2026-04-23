@@ -84,6 +84,7 @@ async def _emit(event: dict[str, Any]) -> None:
 
 
 _COMBINED_COVER_TEMPLATE = Path(r"c:\Users\user\Desktop\hungaaaaa.pdf")
+_IS_VERCEL = bool(_os.environ.get("VERCEL", "").strip())
 
 
 def _strip_double_question_marks(text: str) -> str:
@@ -1754,7 +1755,8 @@ async def _run_buyer_pipeline(
         _buyer_task.update({"step": "crawl", "step_label": "CPHI ??"})
         await _log(f"??? ?? ??: {product_label} / {target_country} ({target_region})")
         from utils.cphi_crawler import crawl as cphi_crawl, PRODUCT_SEARCH_MAP
-        companies = await cphi_crawl(product_key=product_key, candidate_pool=20, emit=_log)
+        candidate_pool = int(_os.environ.get("BUYER_CANDIDATE_POOL", "8" if _IS_VERCEL else "20"))
+        companies = await cphi_crawl(product_key=product_key, candidate_pool=max(5, candidate_pool), emit=_log)
         _buyer_task["crawl_count"] = len(companies)
 
         if not companies:
@@ -1777,6 +1779,8 @@ async def _run_buyer_pipeline(
             target_region=target_region,
             emit=_log,
             hu_market_static=hu_enrich,
+            max_concurrency=4 if _IS_VERCEL else 2,
+            use_perplexity=not _IS_VERCEL,
         )
         _buyer_task["all_candidates"] = enriched
 
@@ -1830,6 +1834,7 @@ async def _run_buyer_pipeline(
             target_country=target_country,
             target_region=target_region,
         )
+        await asyncio.to_thread(_upload_report_to_storage, pdf_path)
         _buyer_task["pdf"] = pdf_name
         _buyer_task.update({"status": "done", "step": "done", "step_label": "??"})
         await _log("??? ??? ?? ??", "success")
@@ -1851,13 +1856,22 @@ async def trigger_buyers(body: BuyerRunBody | None = None) -> JSONResponse:
         "crawl_count": 0, "all_candidates": [], "buyers": [], "pdf": None,
         "task_id": task_id,
     }
-    asyncio.create_task(_run_buyer_pipeline(
-        req.product_key,
-        req.active_criteria,
-        req.target_country,
-        req.target_region,
-        req.analysis_context,
-    ))
+    if _IS_VERCEL:
+        await _run_buyer_pipeline(
+            req.product_key,
+            req.active_criteria,
+            req.target_country,
+            req.target_region,
+            req.analysis_context,
+        )
+    else:
+        asyncio.create_task(_run_buyer_pipeline(
+            req.product_key,
+            req.active_criteria,
+            req.target_country,
+            req.target_region,
+            req.analysis_context,
+        ))
     return JSONResponse({"ok": True, "task_id": task_id})
 
 
@@ -2028,6 +2042,14 @@ async def buyer_report_download(name: str | None = None) -> Any:
             return FileResponse(
                 str(target), media_type="application/pdf",
                 filename=target.name, content_disposition_type="attachment",
+            )
+        blob = _download_report_from_storage(Path(name).name)
+        if blob:
+            import io
+            return StreamingResponse(
+                io.BytesIO(blob),
+                media_type="application/pdf",
+                headers={"Content-Disposition": f"attachment; filename={Path(name).name}"},
             )
     # ?? hu ??? ReportLab PDF(??? sg_* ??)
     pdfs = sorted(

@@ -160,6 +160,7 @@ async def enrich_company(
     target_region: str = "Europe",
     emit: Callable[[str], Awaitable[None]] | None = None,
     hu_market_static: str = "",
+    use_perplexity: bool = True,
 ) -> dict[str, Any]:
     """단일 기업 심층조사 — CPHI 텍스트 + Perplexity 검증 → Claude Haiku."""
     name    = company.get("company_name", "-")
@@ -190,7 +191,7 @@ async def enrich_company(
     # CF-prefixed ID는 실제 기업명이 아니므로 검색 스킵
     is_real_name = bool(name) and name != "-" and not re.match(r"^CF\w+$", name)
 
-    if px_key and is_real_name:
+    if use_perplexity and px_key and is_real_name:
         try:
             from utils.perplexity_searcher import verify_company as pplx_verify
             products_hint = ", ".join(company.get("products_cphi", [])[:5])
@@ -336,30 +337,37 @@ async def enrich_all(
     target_region: str = "Europe",
     emit: Callable[[str], Awaitable[None]] | None = None,
     hu_market_static: str = "",
+    max_concurrency: int = 1,
+    use_perplexity: bool = True,
 ) -> list[dict[str, Any]]:
-    """전체 기업 심층조사 (순차 — API 부하 조절)."""
-    results: list[dict[str, Any]] = []
+    """전체 기업 심층조사 (병렬도 제어)."""
+    results: list[dict[str, Any]] = [None] * len(companies)
     total = len(companies)
 
-    px_available = bool(os.environ.get("PERPLEXITY_API_KEY", "").strip())
+    px_available = use_perplexity and bool(os.environ.get("PERPLEXITY_API_KEY", "").strip())
     model_info = "Claude Haiku + Perplexity" if px_available else "Claude Haiku"
     if emit:
         await emit(f"심층조사 시작 / 모델: {model_info} / 타깃: {target_country} ({target_region})")
 
-    for i, company in enumerate(companies, 1):
+    sem = asyncio.Semaphore(max(1, int(max_concurrency)))
+
+    async def _work(idx: int, company: dict[str, Any]) -> None:
+        i = idx + 1
         name = company.get("company_name", company.get("exid", f"#{i}"))
         if emit:
             await emit(f"  [{i}/{total}] {name} 분석 중…")
-        try:
-            enriched = await enrich_company(
-                company, product_label, target_country, target_region, emit,
-                hu_market_static=hu_market_static,
-            )
-        except Exception as e:
-            if emit:
-                await emit(f"  [{i}/{total}] {name} 오류: {e} → 폴백")
-            enriched = {**company, "enriched": dict(_NULL_ENRICH)}
-        results.append(enriched)
-        await asyncio.sleep(0.8)
+        async with sem:
+            try:
+                enriched = await enrich_company(
+                    company, product_label, target_country, target_region, emit,
+                    hu_market_static=hu_market_static,
+                    use_perplexity=use_perplexity,
+                )
+            except Exception as e:
+                if emit:
+                    await emit(f"  [{i}/{total}] {name} 오류: {e} → 폴백")
+                enriched = {**company, "enriched": dict(_NULL_ENRICH)}
+            results[idx] = enriched
 
-    return results
+    await asyncio.gather(*[_work(idx, company) for idx, company in enumerate(companies)])
+    return [r for r in results if r is not None]

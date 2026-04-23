@@ -95,14 +95,31 @@ def _strip_double_question_marks(text: str) -> str:
     return s.strip()
 
 
+def _strip_encoding_artifacts(text: str) -> str:
+    """깨진 대체문자(U+FFFD)를 제거."""
+    s = str(text or "")
+    return s.replace("\ufffd", "")
+
+
 def _sanitize_p2_payload(value: Any) -> Any:
     """P2 PDF 직전 payload에서 ?? 토큰만 재귀적으로 정리."""
     if isinstance(value, str):
-        return _strip_double_question_marks(value)
+        return _strip_encoding_artifacts(_strip_double_question_marks(value))
     if isinstance(value, list):
         return [_sanitize_p2_payload(v) for v in value]
     if isinstance(value, dict):
         return {k: _sanitize_p2_payload(v) for k, v in value.items()}
+    return value
+
+
+def _sanitize_p1_payload(value: Any) -> Any:
+    """P1 PDF 직전 payload에서 깨진 인코딩 문자만 재귀적으로 정리."""
+    if isinstance(value, str):
+        return _strip_encoding_artifacts(value)
+    if isinstance(value, list):
+        return [_sanitize_p1_payload(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _sanitize_p1_payload(v) for k, v in value.items()}
     return value
 
 
@@ -650,6 +667,7 @@ async def _run_pipeline_for_product(product_key: str) -> None:
                 references=refs_map,
             )
         )
+        report_obj = _sanitize_p1_payload(report_obj)
         _apply_hu_p1_meta(report_obj, gen_at)
         pdf_name = f"hu_report_{product_key}_{ts}.pdf"
         pdf_path = reports_dir / pdf_name
@@ -715,6 +733,7 @@ async def _run_custom_pipeline(trade_name: str, inn: str, dosage_form: str) -> N
                 references=_refs_map2,
             )
         )
+        _report2 = _sanitize_p1_payload(_report2)
         _apply_hu_p1_meta(_report2, _gen_at2)
         _pdf_name2 = f"hu_report_custom_{_ts2}.pdf"
         _pdf_path2 = _reports_dir2 / _pdf_name2

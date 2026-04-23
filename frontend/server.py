@@ -158,6 +158,20 @@ def _download_report_from_storage(name: str) -> bytes | None:
     return None
 
 
+def _materialize_report_from_storage(name: str) -> Path | None:
+    """Storage의 PDF를 로컬 REPORTS_DIR에 복원."""
+    safe = Path(str(name or "")).name
+    if not safe:
+        return None
+    blob = _download_report_from_storage(safe)
+    if not blob:
+        return None
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    local_path = REPORTS_DIR / safe
+    local_path.write_bytes(blob)
+    return local_path if local_path.is_file() else None
+
+
 # ?????API ??????????? ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
 class ApiKeysBody(BaseModel):
@@ -1535,7 +1549,35 @@ async def trigger_p2_pipeline(body: P2PipelineBody) -> JSONResponse:
         raise HTTPException(409, "P2 ????????? ???? ??? ?????.")
 
     if body.report_filename:
-        report_path = REPORTS_DIR / Path(body.report_filename).name
+        requested_name = Path(body.report_filename).name
+        report_path = REPORTS_DIR / requested_name
+        if not report_path.is_file():
+            restored = _materialize_report_from_storage(requested_name)
+            if restored is not None:
+                report_path = restored
+        # 로컬스토리지의 구버전 SG 파일명 선택값을 HU 파일명으로 자동 보정
+        if not report_path.is_file() and "_SG_" in requested_name:
+            alt_name = requested_name.replace("_SG_", "_HU_")
+            alt_path = REPORTS_DIR / alt_name
+            if alt_path.is_file():
+                report_path = alt_path
+            else:
+                restored_alt = _materialize_report_from_storage(alt_name)
+                if restored_alt is not None:
+                    report_path = restored_alt
+        # 이름 불일치 시 같은 품목 토큰의 최신 P1을 선택
+        if not report_path.is_file():
+            import re as _re_p2
+            m = _re_p2.search(r"hu_report_(?:SG|HU)_(.+?)_\d{8}_\d{6}\.pdf$", requested_name, _re_p2.I)
+            if m:
+                token = m.group(1).lower()
+                candidates = sorted(
+                    [p for p in _p1_market_research_pdf_paths(REPORTS_DIR) if token in p.name.lower()],
+                    key=lambda p: p.stat().st_mtime,
+                    reverse=True,
+                )
+                if candidates:
+                    report_path = candidates[0]
     else:
         report_path = _latest_report_pdf()
 

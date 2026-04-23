@@ -419,11 +419,58 @@ async def api_news() -> JSONResponse:
     except Exception:
         pass  # Naver ??? ??Perplexity ???
 
-    return JSONResponse({
-        "ok": False,
-        "error": "뉴스 조회 실패: 네이버 뉴스를 가져오지 못했습니다.",
-        "items": [],
-    })
+    # 2) Perplexity fallback
+    px_key = os.environ.get("PERPLEXITY_API_KEY", "").strip()
+    if not px_key:
+        return JSONResponse({
+            "ok": False,
+            "error": "뉴스 조회 실패: 네이버 뉴스를 가져오지 못했습니다.",
+            "items": [],
+        })
+
+    try:
+        payload = {
+            "model": "sonar-pro",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a Hungary pharmaceutical market analyst. "
+                        "Return ONLY a JSON array with up to 7 recent news items. "
+                        "All 'title' values MUST be written in Korean (한국어)."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        "Find the latest Hungary pharmaceutical market and regulatory news. "
+                        "Return a strict JSON array. Each item: title (Korean), source, date, link."
+                    ),
+                },
+            ],
+            "max_tokens": 900,
+            "temperature": 0.2,
+        }
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            resp = await client.post(
+                "https://api.perplexity.ai/chat/completions",
+                headers={"Authorization": f"Bearer {px_key}", "Content-Type": "application/json"},
+                json=payload,
+            )
+            resp.raise_for_status()
+            raw = resp.json()
+
+        content = str(raw.get("choices", [{}])[0].get("message", {}).get("content", ""))
+        items = _parse_perplexity_news_items(content)
+        if not items:
+            return JSONResponse({"ok": False, "error": "Perplexity 뉴스 파싱 실패", "items": []})
+
+        data = {"ok": True, "source": "perplexity", "items": items}
+        _news_cache["data"] = data
+        _news_cache["ts"] = _time.time()
+        return JSONResponse(data)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)[:120], "items": []})
 
 
 # ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
